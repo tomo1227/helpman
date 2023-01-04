@@ -2,6 +2,10 @@
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 use std::io::{stdout, Write};
+use std::os::unix::process::CommandExt;
+use std::path::Path;
+use std::process::Command;
+use std::string;
 use termimad::crossterm::{
     cursor::{Hide, Show},
     event::{self, Event, KeyCode::*, KeyEvent},
@@ -25,9 +29,17 @@ struct Cli {
 #[derive(Debug)]
 struct CustomError(String);
 
+fn vim_open(path:String) {
+    let _ = Command::new("view")
+            .arg(path)
+            .exec();
+}
+
+// terminalに表示するスタイル
 fn view_area() -> Area {
     let mut area = Area::full_screen();
-    area.pad_for_max_width(120); // we don't want a too wide text column
+    // Max横幅
+    area.pad_for_max_width(120);
     area
 }
 
@@ -62,6 +74,7 @@ fn md_reader(skin: MadSkin, md: &str) -> Result<(), Error> {
     Ok(())
 }
 
+// md-readerのスタイル
 fn make_skin() -> MadSkin {
     let mut skin = MadSkin::default();
     skin.table.align = Alignment::Center;
@@ -77,15 +90,31 @@ fn main() -> Result<()> {
     let args = Cli::parse();
 
     if args.markdown {
-        let skin = make_skin();
-        let md = std::fs::read_to_string(["doc/md/", &args.file, ".md"].concat())
-            .with_context(|| format!("エラー内容 : {} が見つかりません", args.file))?;
-        md_reader(skin, &md);
+        let md_path = ["doc/md/", &args.file, ".md"].concat();
+        // -mdの時
+        if args.write {
+            // 書き込み
+            vim_open(md_path);
+        } else {
+            // 読み込み
+            let skin = make_skin();
+            let md = std::fs::read_to_string(md_path)
+                .with_context(|| format!("エラー内容 : {} が見つかりません", args.file))?;
+            md_reader(skin, &md);
+        }
     } else {
-        let content = std::fs::read_to_string(["doc/text/", &args.file, ".txt"].concat())
-            .with_context(|| format!("エラー内容 : {}.md が見つかりません", args.file))?;
+        let txt_path = ["doc/text/", &args.file, ".txt"].concat();
+        if args.write {
+            // 書き込み
+            vim_open(txt_path);
+            
+        } else {
+            // 読み込み
+            let content = std::fs::read_to_string(txt_path)
+                .with_context(|| format!("エラー内容 : {}.md が見つかりません", args.file))?;
 
-        println!("{}", content);
+            println!("{}", content);
+        }
     }
     Ok(())
 }
