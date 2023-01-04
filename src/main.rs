@@ -1,9 +1,12 @@
 #![allow(unused)]
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
+use home::home_dir;
+use std::env;
+use std::fs;
 use std::io::{stdout, Write};
 use std::os::unix::process::CommandExt;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::string;
 use termimad::crossterm::{
@@ -29,10 +32,10 @@ struct Cli {
 #[derive(Debug)]
 struct CustomError(String);
 
-fn vim_open(path:String) {
-    let _ = Command::new("view")
-            .arg(path)
-            .exec();
+fn vim_open(dir: String) {
+    let _ = Command::new("vim")
+        .arg(dir)
+        .exec();
 }
 
 // terminalに表示するスタイル
@@ -86,34 +89,44 @@ fn make_skin() -> MadSkin {
     skin
 }
 
+fn init(path: String) {
+    Command::new("mkdir").args(["-p", &path]).spawn();
+}
+
 fn main() -> Result<()> {
     let args = Cli::parse();
+    let home_path = home_dir().unwrap();
+    let base_path: String = home_path.to_str().unwrap().to_string() + "/Documents/helpman/";
 
+    // println!("{}", base_path);
     if args.markdown {
-        let md_path = ["doc/md/", &args.file, ".md"].concat();
+        fs::create_dir_all([&base_path, "md"].concat())?;
+        let md_path = [&base_path, "md/", &args.file, ".md"].concat();
         // -mdの時
         if args.write {
             // 書き込み
+            init([&base_path, "md"].concat());
             vim_open(md_path);
         } else {
             // 読み込み
             let skin = make_skin();
-            let md = std::fs::read_to_string(md_path)
-                .with_context(|| format!("エラー内容 : {} が見つかりません", args.file))?;
+            let md = fs::read_to_string(PathBuf::from(md_path))
+                .with_context(|| format!("エラー内容 : {}.md が見つかりません", args.file))?;
             md_reader(skin, &md);
         }
     } else {
-        let txt_path = ["doc/text/", &args.file, ".txt"].concat();
+        fs::create_dir_all([&base_path, "text"].concat())?;
+        let txt_path = [&base_path, "text/", &args.file, ".txt"].concat();
         if args.write {
+            init([&base_path, "text"].concat());
             // 書き込み
             vim_open(txt_path);
-            
         } else {
             // 読み込み
-            let content = std::fs::read_to_string(txt_path)
-                .with_context(|| format!("エラー内容 : {}.md が見つかりません", args.file))?;
+            let content = fs::read_to_string(txt_path)
+                .with_context(|| format!("エラー内容 : {}.text が見つかりません", args.file))?;
 
-            println!("{}", content);
+            // println!("{}", content);
         }
     }
     Ok(())

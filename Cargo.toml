@@ -8,4 +8,5 @@ edition = "2021"
 [dependencies]
 anyhow = "1.0.68"
 clap = { version = "4.0.32", features = ["derive"] }
+home = "0.5.4"
 termimad = "0.20.6"
