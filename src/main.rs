@@ -1,10 +1,12 @@
 #![allow(unused)]
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
+use dotenv::dotenv;
 use home::home_dir;
 use std::env;
+use std::ffi::OsStr;
 use std::fs;
-use std::io::{stdout, Write};
+use std::io::{stdout, BufWriter, Write};
 use std::os::unix::process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -18,7 +20,20 @@ use termimad::crossterm::{
 };
 use termimad::*;
 
+mod list;
+use list::list_view;
+
+mod init;
+use init::{init, init_all};
+
+mod path;
+use path::{reset_base_path, set_base_path};
+
+mod delete;
+use delete::delete_folder;
+
 #[derive(Parser)]
+#[command(version)]
 struct Cli {
     #[arg(short, help = "ドキュメントの参照")]
     read: bool,
@@ -26,16 +41,26 @@ struct Cli {
     write: bool,
     #[arg(short, long, help = "Markdown")]
     markdown: bool,
-    file: String,
+    file: Option<String>,
+    #[arg(short, long, help = "ドキュメントリストの表示")]
+    list: bool,
+    #[arg(short = 'S', help = "パスのセット", value_name = "PATH")]
+    set_path: Option<String>,
+    #[arg(short = 'R', help = "パスのリセット")]
+    reset_path: bool,
+    #[arg(short = 'v', help = "現在のパスを表示")]
+    view_path: bool,
+    #[arg(short, long, help = "helpman初期化")]
+    init: bool,
+    #[arg(short, long, help = "ドキュメントデータの削除")]
+    delete: bool,
 }
 
 #[derive(Debug)]
 struct CustomError(String);
 
 fn vim_open(dir: String) {
-    let _ = Command::new("vim")
-        .arg(dir)
-        .exec();
+    let _ = Command::new("vi").arg(dir).exec();
 }
 
 // terminalに表示するスタイル
@@ -89,44 +114,78 @@ fn make_skin() -> MadSkin {
     skin
 }
 
-fn init(path: String) {
-    Command::new("mkdir").args(["-p", &path]).spawn();
-}
-
 fn main() -> Result<()> {
     let args = Cli::parse();
     let home_path = home_dir().unwrap();
-    let base_path: String = home_path.to_str().unwrap().to_string() + "/Documents/helpman/";
+    let default_base_path: String = home_path.to_str().unwrap().to_string() + "/Documents/";
+    dotenv().ok();
+    let base_path = [
+        &env::var("BASE_PATH").unwrap_or(default_base_path.clone()),
+        "helpman/",
+    ]
+    .concat();
 
-    // println!("{}", base_path);
-    if args.markdown {
-        fs::create_dir_all([&base_path, "md"].concat())?;
-        let md_path = [&base_path, "md/", &args.file, ".md"].concat();
-        // -mdの時
-        if args.write {
-            // 書き込み
-            init([&base_path, "md"].concat());
-            vim_open(md_path);
+    // -mdの時
+    if args.init {
+        init_all(base_path)
+    } else if args.set_path.is_some() {
+        set_base_path(args.set_path.unwrap());
+    } else if args.reset_path {
+        reset_base_path();
+    } else if args.view_path {
+        println!("{}", &env::var("BASE_PATH").unwrap_or(default_base_path));
+    } else if args.delete {
+        delete_folder(base_path)
+    } else if args.markdown {
+        if args.list {
+            let dirname = [&base_path, "md"].concat();
+            list_view(dirname, "md");
         } else {
-            // 読み込み
-            let skin = make_skin();
-            let md = fs::read_to_string(PathBuf::from(md_path))
-                .with_context(|| format!("エラー内容 : {}.md が見つかりません", args.file))?;
-            md_reader(skin, &md);
+            fs::create_dir_all([&base_path, "md"].concat())?;
+            let md_path = [&base_path, "md/", &args.file.as_ref().unwrap(), ".md"].concat();
+            if args.write {
+                // 書き込み
+                // init([&base_path, "md"].concat());
+                vim_open(md_path);
+            } else {
+                // 読み込み
+                let skin = make_skin();
+                let md = fs::read_to_string(PathBuf::from(md_path)).with_context(|| {
+                    format!("エラー内容 : {}.md が見つかりません", &args.file.unwrap())
+                })?;
+                md_reader(skin, &md);
+            }
         }
+    // -mdないとき
     } else {
-        fs::create_dir_all([&base_path, "text"].concat())?;
-        let txt_path = [&base_path, "text/", &args.file, ".txt"].concat();
-        if args.write {
-            init([&base_path, "text"].concat());
-            // 書き込み
-            vim_open(txt_path);
+        // -l argのFileなし
+        if args.list {
+            // let dirname = [&base_path, "text"].concat();
+            // let files = fs::read_dir(dirname).unwrap();
+            // let out = stdout();
+            // let mut out = BufWriter::new(out.lock());
+            // for entry in files {
+            //     let path = entry.unwrap().path();
+            //     if (path.extension().unwrap().to_str().unwrap() == "txt") {
+            //         writeln!(out, "{}", path.file_stem().unwrap().to_str().unwrap()).unwrap();
+            //     }
+            // }
+            let dirname = [&base_path, "txt"].concat();
+            list_view(dirname, "txt");
         } else {
-            // 読み込み
-            let content = fs::read_to_string(txt_path)
-                .with_context(|| format!("エラー内容 : {}.text が見つかりません", args.file))?;
-
-            // println!("{}", content);
+            fs::create_dir_all([&base_path, "text"].concat())?;
+            let txt_path = [&base_path, "text/", &args.file.as_ref().unwrap(), ".txt"].concat();
+            // -w　書き込み
+            if args.write {
+                init([&base_path, "text"].concat());
+                vim_open(txt_path);
+            } else {
+                // -r 読み込み
+                let content = fs::read_to_string(txt_path).with_context(|| {
+                    format!("エラー内容 : {}.text が見つかりません", args.file.unwrap())
+                })?;
+                // println!("{}", content);
+            }
         }
     }
     Ok(())
