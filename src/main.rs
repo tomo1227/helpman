@@ -54,7 +54,7 @@ struct Cli {
     view_path: bool,
     #[arg(short, long, help = "helpman初期化")]
     init: bool,
-    #[arg(short='D', long, help = "ドキュメントデータの削除")]
+    #[arg(short='D', help = "ドキュメントデータの削除")]
     delete_all: bool,
 }
 
