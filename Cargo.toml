@@ -1,6 +1,6 @@
 [package]
 name = "helpman"
-version = "1.0.0"
+version = "1.0.1"
 edition = "2021"
 authors = ["Tomoki Ota <tomo.soccer1227@gmail.com>"]
 license = "MIT"
