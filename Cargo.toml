@@ -8,6 +8,7 @@ categories = ["command-line-utilities"]
 keywords = ["helpman"] 
 repository = "https://github.com/tomo1227/helpman"
 homepage = "https://tomomon.jp"
+description = "Document Cli Application"
 
 [badges]
 github = { repository = "tomo1227/helpman", workflow = "Rust" }
