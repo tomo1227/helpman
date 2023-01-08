@@ -2,7 +2,21 @@
 
 **helpman** is Cli Application.
 
+## Install
+
+Rust is requiered.
+
+```terminal
+cargo install helpman
+```
+
 # Usage
+
+First, you have to initialize.
+
+```
+helpman -i
+```
 
 ## ドキュメント操作
 
@@ -48,5 +62,6 @@ helpman [Option]
 |  -V, --version  |  version表示  |
 |  -i, --init  |  helpmanディレクトリ初期化　|
 | -h, --help | usage表示 |
-`-i`はディレクトリが存在しない場合だけ初期化される。
+
+`-i` はディレクトリが存在しない場合だけ初期化される。
 すでにフォルダが存在する場合は何にもしない。
